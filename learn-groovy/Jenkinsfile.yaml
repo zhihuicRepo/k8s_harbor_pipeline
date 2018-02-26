@@ -1,0 +1,25 @@
+images:
+  jnlp: "harbor.quark.com/quark/jnlp-slave:alpine"
+  maven: "harbor.quark.com/quark/maven:3.5.0-8u74"
+  docker: "harbor.quark.com/quark/docker:1.12.6"
+  app: "harbor.quark.com/quark/contract:v1"
+app:
+  dockerfile: "./"
+  dockerhosts:
+  containername:
+  # all other docker param specify here
+  dockeroptions:
+git:
+  gitrepo: "http://172.30.33.32/contract-mgt/ContractMgt.git"
+  gitcredentialsid: "837658c2-68c1-41e5-9487-e3ee1a862187"
+  #gitbranch: "refs/tags/20171215"
+  gitbranch: "*/master"
+  gitlocal: "ContractMgt"
+args:
+  dockeroptions: "--add-host qf-javadev-01:172.16.1.39 -v /data/maven_repo:/home/qkuser/.m2"
+  mavenoptions: "-f ContractMgt/pom.xml clean install -Dmaven.test.skip=true"
+email:
+  subject:
+  attachLog:
+  attachmentsPattern:
+  emailRecipients: "chinakevinguo@live.com"

@@ -1,0 +1,52 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  namespace: quark-dev
+  labels:
+    run: tomcat
+  name: tomcat
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      run: tomcat
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 5
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        run: tomcat
+    spec:
+      #hostNetwork: true
+      containers:
+      - image: tomcat:latest
+        name: tomcat
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SERVICE_NAME
+          value: tomcat
+        - name: SERVICE_TAGS
+          value: urlprefix-tomcat/
+        - name: SERVICE_8080_CHECK_HTTP
+          value: "/"
+        - name: SERVICE_8080_CHECK_INTERVAL
+          value: "15s"
+        - name: SERVICE_8080_CHECK_TIME
+          value: "1s"
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        resources: {}
+status: {}

@@ -1,0 +1,39 @@
+jenkins+etcd+registry
+172.30.33.31 authmethod:
+ldap
+
+http://dashboard.xxxxx.com
+http://jenkins-k8s.xxxxx.com 
+http://harbor.xxxxx.com ldap账户登陆 
+
+kubernetes components
+172.29.151.1 master
+172.29.151.2 master
+172.29.151.3 master
+172.29.151.4 fabio
+172.29.151.5 node
+172.29.151.6 node
+172.29.151.7 node
+172.29.151.8 consol
+
+authmethod:
+user: root
+password: 
+
+ceph cluster
+172.30.33.39
+172.30.33.40
+172.30.33.41
+
+authmethod:
+user: root
+password: 
+
+rancher server cluster
+172.30.33.183 LB
+172.30.33.227 DB
+172.30.33.44 server
+172.30.33.45 server
+
+authmethod:
+ldap
