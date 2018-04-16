@@ -1,0 +1,100 @@
+  pipeline {
+    agent any
+    environment {
+        GIT_CREDENTIALSID = "xx"
+        GIT_URL = "http://git.q.com/springboot-docker.git"
+        GIT_BRANCHES = "master"
+        MVN_IMAGE = "harbor.quark.com/quark/maven:3.5.0-8u74"
+        MVN_ARGS = "--add-host qf-javadev-01:1.1.3.39 -v /opt/maven/conf:/usr/share/maven/ref:ro -v /root/.m2:/var/maven/.m2"
+        MVN_PACKAGE = "mvn package -Dmaven.test.skip=true"
+        HARBOR_CREDENTIALSID = "xx"
+        HARBOR_REGISTER = "testharbor.quark.com"
+        HARBOR_TAG = "testharbor.quark.com/playground/czh4est:10280409-2"
+        DOCKERHOSTS = "172.29.151.20,172.29.250.20"
+		CONTAINERNAME = "czh4testGit180411"
+   }
+    stages {
+        stage('git_clone') {
+          agent { node { label 'jenkins_ma' }}
+          steps {
+            checkout([$class: 'GitSCM', 
+            branches: [[name: GIT_BRANCHES]], 
+            doGenerateSubmoduleConfigurations: false, 
+            extensions: [[$class: 'CleanCheckout']], 
+            submoduleCfg: [], 
+            userRemoteConfigs: [[credentialsId: GIT_CREDENTIALSID, url: GIT_URL]]
+                ])
+            }
+                           }      
+        stage('mvn') {
+          agent {
+              docker { 
+                    image "harbor.quark.com/quark/maven:3.5.0-8u74"
+                    args "--add-host qf-javadev-01:172.16.1.39 -v /opt/maven/conf:/usr/share/maven/ref:ro -v /root/.m2:/var/maven/.m2"
+                }
+            }
+          steps {
+                sh "${MVN_PACKAGE}"
+            }
+        }
+        stage('push_image') {
+          agent { node { label 'jenkins_ma' }}
+          steps {
+              script {
+              // for dockerfile
+              def dockerFileContext = """FROM testharbor.quark.com/base/jdk:8u74
+MAINTAINER ShaozeWang "haichangzhang@quarkfinance.com"
+RUN mkdir -p /app
+WORKDIR /app
+COPY ./target/springboot-docker-0.0.1-SNAPSHOT.jar ./app.jar
+ENTRYPOINT ["java","-Djava.security.egd=file:/dev/./urandom","-jar","/app.jar"]
+"""
+writeFile encoding: 'UTF-8', file: "Dockerfile2",text: dockerFileContext
+              }
+            withCredentials([usernamePassword(credentialsId: HARBOR_CREDENTIALSID, usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+            sh "docker login  ${HARBOR_REGISTER} -u ${USERNAME} -p ${PASSWORD}"
+            sh "docker build . -t ${HARBOR_TAG}"
+            sh "docker push ${HARBOR_TAG}"
+            sh "docker rmi ${HARBOR_TAG}"
+    }    
+    }
+ }
+        stage("DeployContainer"){
+          agent { node { label 'jenkins_ma' }}
+          steps {
+            script {
+                def hostsArry = DOCKERHOSTS.split(',')
+                for (int i = 0;i<hostsArry.size();i++) {
+                    def APPIP = hostsArry[i].trim()
+			         RESULT = sh (script: "docker -H"+" "+APPIP+":2375 inspect -f '{{.Image}}'"+" "+CONTAINERNAME,returnStdout: true).trim()			
+                     sh "docker -H ${APPIP}:2375 stop ${CONTAINERNAME}"
+                     sh "docker -H ${APPIP}:2375 rm ${CONTAINERNAME}"
+                    sh "docker -H ${APPIP}:2375 pull ${HARBOR_TAG}"	
+                    sh "docker -H ${APPIP}:2375 run -d --restart=always --name=${CONTAINERNAME} ${HARBOR_TAG}"	
+                    sleep(20)          
+                    def containerStatus = sh (script: "docker -H"+" "+APPIP+":2375 inspect -f '{{.State.Status}}'"+" "+CONTAINERNAME,returnStdout: true).trim()
+                    println containerStatus
+                    if (containerStatus != 'running') {
+                    sh (script: "docker -H"+" "+APPIP+":2375 stop"+" "+CONTAINERNAME,returnStdout: true)
+                    sh (script: "docker -H"+" "+APPIP+":2375 rm"+" "+CONTAINERNAME,returnStdout: true)
+                    error "containerStatus is ${containerStatus}"
+                    } else {
+                       println "Deploy Success!"
+                    }            
+                    sh "docker -H ${APPIP}:2375 inspect -f '{{.State.Status}}' ${CONTAINERNAME}"
+                    sh "docker -H ${APPIP}:2375 rmi ${RESULT}"	
+            }
+            }
+        }
+    }
+        stage("clean workspace"){
+          agent { node { label 'jenkins_ma' }}
+          steps {
+            cleanWs()
+        }
+    }
+ }
+ }
+
+
+ 
