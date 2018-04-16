@@ -1,0 +1,109 @@
+  pipeline {
+    agent none
+    environment {
+        SVN_CREDENTIALSID = "xx"
+        SVN_URL = "https://a.com/tags/coms-common-parent/a-083949-01"
+        SVN_BRANCHES = ""
+        MVN_IMAGE = "harbor.quark.com/quark/maven:3.5.0-8u74"
+        MVN_ARGS = "--add-host qf-javadev-01:172.16.1.39 -v /opt/maven/conf:/usr/share/maven/ref:ro -v /root/.m2:/var/maven/.m2"
+        MVN_PACKAGE = "mvn clean install -Dmaven.test.skip=true -f src/pom.xml -Denv=xingneng  -s /usr/share/maven/ref/settings4caimi.xml"
+        HARBOR_CREDENTIALSID = "xx"
+        HARBOR_REGISTER = "testharbor.quark.com"
+        HARBOR_TAG = "testharbor.quark.com/playground/czh4est:10280409-2"
+		DOCKERHOSTS = "172.29.151.20,172.29.250.20"
+		CONTAINERNAME = "czh4test180411"
+   }
+    stages {
+        stage('svn_checkout') {
+          agent { node { label 'jenkins_ma' }}
+          steps {
+			checkout([$class: 'SubversionSCM', 
+              additionalCredentials: [], 
+              excludedCommitMessages: '', 
+              excludedRegions: '', 
+              excludedRevprop: '', 
+              excludedUsers: '', 
+              filterChangelog: false, 
+              ignoreDirPropChanges: false, 
+              includedRegions: '', 
+              locations: [[credentialsId: SVN_CREDENTIALSID, 
+              depthOption: 'infinity', 
+              ignoreExternalsOption: true, 
+              local: 'src', 
+              remote: SVN_URL]], 
+              workspaceUpdater: [$class: 'UpdateUpdater']])
+            }
+                           }
+    
+        stage('mvn') {
+          agent {
+              docker { 
+                    image "harbor.quark.com/quark/maven:3.5.0-8u74"
+                    args "--add-host qf-javadev-01:172.16.1.39 -v /opt/maven/conf:/usr/share/maven/ref:ro -v /root/.m2:/var/maven/.m2"
+                }
+            }
+          steps {
+                sh "${MVN_PACKAGE}"
+            }
+        }
+        stage('push_image') {
+          agent { node { label 'jenkins_ma' }}
+          steps {
+            script {
+              def dockerFileContext = """FROM testharbor.quark.com/base/jarapp:0.0.3-7u79
+MAINTAINER ShaozeWang "haichangzhang@quarkfinance.com"
+RUN mkdir -p /app
+WORKDIR /app
+COPY ./src/coms-consumer-bkend/target/coms-consumer-bkend.tar.gz /opt/jarapp
+RUN  rm -rf /opt/jarapp/*-sources.jar && mkdir -p /data/coms_logs/ && chmod -R 777 /data/coms_logs/ && ln -s /data/coms_logs/* /AppLogs/
+"""
+              writeFile encoding: 'UTF-8', file: "Dockerfile",text: dockerFileContext
+              }
+            withCredentials([usernamePassword(credentialsId: HARBOR_CREDENTIALSID, usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+            sh "docker login  ${HARBOR_REGISTER} -u ${USERNAME} -p ${PASSWORD}"
+            sh "docker build --no-cache=true . -t ${HARBOR_TAG}"
+            sh "docker push ${HARBOR_TAG}"
+            sh "docker rmi ${HARBOR_TAG}"
+    }    
+    }
+ }
+        stage("DeployContainer"){
+          agent { node { label 'jenkins_ma' }}
+          steps {
+            script {
+                def hostsArry = DOCKERHOSTS.split(',')
+                for (int i = 0;i<hostsArry.size();i++) {
+                    def APPIP = hostsArry[i].trim()
+			         RESULT = sh (script: "docker -H"+" "+APPIP+":2375 inspect -f '{{.Image}}'"+" "+CONTAINERNAME,returnStdout: true).trim()			
+                     sh "docker -H ${APPIP}:2375 stop ${CONTAINERNAME}"
+                     sh "docker -H ${APPIP}:2375 rm ${CONTAINERNAME}"
+                    sh "docker -H ${APPIP}:2375 pull ${HARBOR_TAG}"	
+                    sh "docker -H ${APPIP}:2375 run -d --restart=always --name=${CONTAINERNAME} ${HARBOR_TAG}"	
+                    sleep(20)          
+                    def containerStatus = sh (script: "docker -H"+" "+APPIP+":2375 inspect -f '{{.State.Status}}'"+" "+CONTAINERNAME,returnStdout: true).trim()
+                    println containerStatus
+                    if (containerStatus != 'running') {
+                    sh (script: "docker -H"+" "+APPIP+":2375 stop"+" "+CONTAINERNAME,returnStdout: true)
+                    sh (script: "docker -H"+" "+APPIP+":2375 rm"+" "+CONTAINERNAME,returnStdout: true)
+                    error "containerStatus is ${containerStatus}"
+                    } else {
+                        println "Deploy Success!"
+                    }            
+                    sh "docker -H ${APPIP}:2375 inspect -f '{{.State.Status}}' ${CONTAINERNAME}"
+                    sh "docker -H ${APPIP}:2375 rmi ${RESULT}"	
+            }
+
+            }
+        }
+    }
+        stage("clean workspace"){
+          agent { node { label 'jenkins_ma' }}
+          steps {
+            cleanWs()
+        }
+    }
+ }
+ }
+
+
+ 
