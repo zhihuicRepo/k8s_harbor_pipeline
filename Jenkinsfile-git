@@ -71,6 +71,7 @@ writeFile encoding: 'UTF-8', file: "Dockerfile2",text: dockerFileContext
                      sh "docker -H ${APPIP}:2375 rm ${CONTAINERNAME}"
                     sh "docker -H ${APPIP}:2375 pull ${HARBOR_TAG}"	
                     sh "docker -H ${APPIP}:2375 run -d --restart=always --name=${CONTAINERNAME} ${HARBOR_TAG}"	
+		    //for fabio+consul+register , you can add docker start with ' -e "SERVICE_80_NAME=web" -e SERVICE_TAGS=urlprefix-/ -e "SERVICE_80_ID=http1" -e "SERVICE_80_CHECK_HTTP=true" -e "SERVICE_80_CHECK_HTTP=/" '
                     sleep(20)          
                     def containerStatus = sh (script: "docker -H"+" "+APPIP+":2375 inspect -f '{{.State.Status}}'"+" "+CONTAINERNAME,returnStdout: true).trim()
                     println containerStatus
