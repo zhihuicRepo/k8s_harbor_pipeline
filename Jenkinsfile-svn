@@ -39,7 +39,7 @@
           agent {
               docker { 
                     image "harbor.quark.com/quark/maven:3.5.0-8u74"
-                    args "--add-host qf-javadev-01:172.16.1.39 -v /opt/maven/conf:/usr/share/maven/ref:ro -v /root/.m2:/var/maven/.m2"
+                    args "--add-host qf-javadev-01:172.x.x.x -v /opt/maven/conf:/usr/share/maven/ref:ro -v /root/.m2:/var/maven/.m2"
                 }
             }
           steps {
@@ -51,7 +51,7 @@
           steps {
             script {
               def dockerFileContext = """FROM testharbor.quark.com/base/jarapp:0.0.3-7u79
-MAINTAINER ShaozeWang "haichangzhang@quarkfinance.com"
+MAINTAINER zhihuic "zhihuic@qq.com"
 RUN mkdir -p /app
 WORKDIR /app
 COPY ./src/coms-consumer-bkend/target/coms-consumer-bkend.tar.gz /opt/jarapp
