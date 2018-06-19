@@ -95,6 +95,20 @@ writeFile encoding: 'UTF-8', file: "Dockerfile2",text: dockerFileContext
         }
     }
  }
+ 
+ post {
+        success {
+        mail to: 'zhihuic@today36524.com.cn',
+             subject: "Success Pipeline: ${currentBuild.fullDisplayName}",
+             body: "Something is successfully ${env.BUILD_URL}"
+        }
+        failure {
+            mail to: 'zhihuic@today36524.com.cn',
+                 subject: "Failed Pipeline: ${currentBuild.fullDisplayName}",
+                 body: "Something is wrong with ${env.BUILD_URL}"
+        }
+    }
+    
  }
 
 
